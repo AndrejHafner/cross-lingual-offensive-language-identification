@@ -1,3 +1,4 @@
+import os
 import time
 import json
 import datetime
@@ -110,10 +111,18 @@ def scrape_article_comments(driver, article_url):
         "comments": comments
     }
 
+def get_already_scrapped_urls(dir):
+    urls = []
+    for filename in os.listdir(dir):
+        with open(os.path.join(dir, filename), "r") as f:
+            file = json.load(f)
+            urls.append(file["url"])
+
+    return set(urls)
+
 if __name__ == '__main__':
     base_url = "https://www.24ur.com/arhiv"
     save_dir = "./data/articles_24ur"
-    article_count = 0 # Used for sequential naming of articles
 
     # Get the webdriver
     driver = webdriver.Chrome("./drivers/chromedriver_90.exe")
@@ -127,6 +136,11 @@ if __name__ == '__main__':
     # Check that directory for saving is created
     Path(save_dir).mkdir(exist_ok=True, parents=True)
 
+    # Get already scrapped URLs
+    already_scrapped_urls = get_already_scrapped_urls(save_dir)
+    # Used for sequential naming of articles
+    article_count = len(os.listdir(save_dir))
+
     for page_url in get_page_url(base_url, max_pages=100):
         driver.get(page_url)
 
@@ -134,10 +148,16 @@ if __name__ == '__main__':
         timeline = WebDriverWait(driver, WAIT_TIMEOUT).until(EC.presence_of_element_located((By.CLASS_NAME, "timeline")))
         # Get the article URLs
         article_urls = [item.get_attribute("href") for item in timeline.find_elements_by_class_name("timeline__item")]
+        # Remove the already scrapped urls
+        article_urls = list(set(article_urls) - already_scrapped_urls)
 
         # Iterate over the articles on one page and scrape the comments
         for article_url in article_urls:
-            article_data = scrape_article_comments(driver, article_url)
+            try:
+                article_data = scrape_article_comments(driver, article_url)
+            except:
+                print(f"Failed scrapping for: {article_url}")
+                continue
 
             # Check if successfully parsed
             if article_data is None:
