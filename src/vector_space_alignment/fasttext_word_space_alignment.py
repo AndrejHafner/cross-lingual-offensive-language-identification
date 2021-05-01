@@ -1,6 +1,7 @@
 import fasttext.util
 import pandas as pd
 import numpy as np
+import pickle
 
 
 def load_models(download=False):
@@ -30,10 +31,37 @@ if __name__ == '__main__':
 
     ft_en, ft_slo = load_models()
     dim = ft_en.get_dimension()
-    # dim = 300
+
     X, Y = make_emb_matrices(ft_en, ft_slo, '../data/words_dict/sl_en_train.txt', dim)
 
-    U, _, V = np.linalg.svd(Y @ X.T)
-    W = U @ V.T
+    # normalize embeddings
+    X_norm = X / np.linalg.norm(X, axis=0)
+    Y_norm = Y / np.linalg.norm(Y, axis=0)
 
+    # linear mapping between slovene and english word space
+    U, _, Vt = np.linalg.svd(Y @ X.T)
+    W = U @ Vt
 
+    U, _, Vt = np.linalg.svd(Y_norm @ X_norm.T)
+    W_norm = U @ Vt
+
+    with open('../data/W_norm.pickle', 'wb') as f:
+        pickle.dump(W_norm, f)
+
+    X_test, Y_test = make_emb_matrices(ft_en, ft_slo, '../data/words_dict/sl_en_test.txt', dim)
+
+    Xt_norm = X_test / np.linalg.norm(X_test, axis=0)
+    Yt_norm = Y_test / np.linalg.norm(Y_test, axis=0)
+
+    # calculate cosine similarity, to see if this method works and if we should normalize embeddings
+    sim_not_aligned = sum(np.diag(Yt_norm.T @ Xt_norm)) / X_test.shape[1]
+    sim_aligned = sum(np.diag((Y_test / np.linalg.norm(Y_test, axis=0)).T @ (W @ X_test / np.linalg.norm(W @ X_test, axis=0)))) / X_test.shape[1]
+
+    sim_norm_aligned = sum(np.diag(Yt_norm.T @ (W_norm @ Xt_norm))) / X_test.shape[1]
+
+    print(f'Average cosine similarity of Slovene and English embeddings before alignment: {sim_not_aligned}')
+    print(f'Average cosine similarity of aligned embeddings: {sim_aligned}')
+    print(f'Average cosine similarity of aligned embeddings with normalization: {sim_norm_aligned}')
+    # on train data:
+    print(f'Aligned train data: {sum(np.diag(Y_norm.T @ (W_norm @ X_norm))) / X.shape[1]}')
+    print(f'Not aligned train data: {sum(np.diag(Y_norm.T @ X_norm)) / X.shape[1]}')
