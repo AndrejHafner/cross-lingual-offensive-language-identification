@@ -1,5 +1,6 @@
 import json
 import random
+import re
 import time
 from collections import Counter
 
@@ -9,8 +10,10 @@ import torch
 import nltk
 
 from tqdm import tqdm
-from transformers import BertTokenizer, BertForSequenceClassification, AdamW, BertConfig, \
+from transformers import BertTokenizer, BertForSequenceClassification, AdamW, \
     get_linear_schedule_with_warmup
+
+from src.web_scrapping.utils import remove_emojies
 from utils import read_fox_comments_dataset, flat_accuracy, format_time
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score, precision_score, recall_score
@@ -314,26 +317,61 @@ def read_white_supremacist_dataset():
         df["hateful"] = [el[2] for el in sentences]
         return df
 
+def filter_gab_reddit_comment(comment):
+    comment = re.sub(r'http\S+', '', comment)
+    comment = re.sub(r'\t', '', comment)
+    comment = ".".join(comment.split(".")[1:])
+    comment = remove_emojies(comment)
+    return comment.strip()
+
+def parse_gab_reddit_dataset(filename):
+    df = pd.read_csv(filename, dtype=str)
+
+    all_comments = []
+    for idx, row in df.iterrows():
+        try:
+            comments = row["text"]
+            hate_speech_idx = json.loads(row["hate_speech_idx"]) if not pd.isnull(row["hate_speech_idx"]) and "n/a" not in row["hate_speech_idx"] else []
+
+            comments_row = [(int(el.split(".")[0]), filter_gab_reddit_comment(el)) for el in comments.split("\n") if len(el.strip()) > 0]
+            comments_row_labeled = [(el[0] in hate_speech_idx, el[1]) for el in comments_row if len(el[1]) > 0]
+            all_comments += comments_row_labeled
+        except:
+            print("Error occured, continuing..")
+
+    df_cleaned = pd.DataFrame()
+    df_cleaned["comment"] = [el[1] for el in all_comments]
+    df_cleaned["label"] = [el[0] for el in all_comments]
+
+    return df_cleaned
+
+
+
+
+
 if __name__ == '__main__':
 
-    batch_size = 24
+    batch_size = 16
     learning_rate = 5e-5
-    epochs = 10
+    epochs = 1
     max_length = 64
-    #
+
+    # df_gab = parse_gab_reddit_dataset("../data/gab-reddit-hate-speech/gab.csv")# (17870 false, 146001 true)
+    # # df_reddit = parse_gab_reddit_dataset("../data/gab-reddit-hate-speech/reddit.csv")# (16959 false, 5251 true)
+    # comments = df_gab["comment"].values
+    # labels = df_gab["label"].values
+
     # df = read_white_supremacist_dataset()
     # comments = df["sentence"].values
     # labels = df["hateful"].values
+
 
     df = read_fox_comments_dataset()
     comments = df["text"].values
     labels = df["label"].values
 
-    cnt = Counter(labels)
-    a = 0
-
-    x_train, x_val, y_train, y_val = train_test_split(comments, labels, test_size=0.2, random_state=42)
-
+    x_train, x_test, y_train, y_test = train_test_split(comments, labels, test_size=0.1, random_state=42)
+    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2, random_state=42)
     # Get Pytorch device
     device = get_torch_device()
 
@@ -343,22 +381,34 @@ if __name__ == '__main__':
     print("Tokenizing the inputs...")
     train_input_ids, train_attention_masks = convert_to_input(x_train, tokenizer, max_length=max_length)
     val_input_ids, val_attention_masks = convert_to_input(x_val, tokenizer, max_length=max_length)
+    test_input_ids, test_attention_masks = convert_to_input(x_test, tokenizer, max_length=max_length)
 
     y_train = torch.tensor(y_train).to(torch.int64)
     y_val = torch.tensor(y_val).to(torch.int64)
+    y_test = torch.tensor(y_test).to(torch.int64)
 
     train_dataset = TensorDataset(train_input_ids, train_attention_masks, y_train)
     val_dataset = TensorDataset(val_input_ids, val_attention_masks, y_val)
+    test_dataset = TensorDataset(test_input_ids, test_attention_masks, y_test)
 
+    test_dataloader = DataLoader(
+        test_dataset,  # The validation samples.
+        sampler=SequentialSampler(test_dataset),  # Pull out batches sequentially.
+        batch_size=32  # Evaluate with this batch size.
+    )
     train_dataloader, val_dataloader = get_dataloaders(train_dataset, val_dataset, batch_size)
 
     # Create the model
-    model = BertForSequenceClassification.from_pretrained(
-        "bert-base-uncased",
-        num_labels=2,
-        output_attentions=False,
-        output_hidden_states=False,
-    )
+    # model = BertForSequenceClassification.from_pretrained(
+    #     "bert-base-uncased",
+    #     num_labels=2,
+    #     output_attentions=False,
+    #     output_hidden_states=False,
+    # )
+
+    # config = PretrainedConfig.from_json_file("../data/models/crosloen_bert/config.json")
+    model = BertForSequenceClassification.from_pretrained("../data/models/crosloen_bert/")
+    # model.bert.load_state_dict(torch.load("../data/models/crosloen_bert/pytorch_model.bin"))
     model.cuda()
 
     # Create the optimizer
@@ -374,4 +424,52 @@ if __name__ == '__main__':
 
     train(model, optimizer, scheduler, train_dataloader, val_dataloader)
 
-    a = 0
+
+    predictions = []
+    true_labels = []
+
+    for batch in test_dataloader:
+        b_input_ids = batch[0].to(device)
+        b_input_mask = batch[1].to(device)
+        b_labels = batch[2].to(device)
+
+        with torch.no_grad():
+            eval_outputs = model(b_input_ids,
+                                 token_type_ids=None,
+                                 attention_mask=b_input_mask,
+                                 labels=b_labels)
+        logits = eval_outputs.logits
+
+        # Move logits and labels to CPU
+        logits = np.argmax(logits.detach().cpu().numpy(), axis=1)
+        label_ids = b_labels.to('cpu').numpy()
+
+        # Store predictions and true labels
+        predictions.append(logits)
+        true_labels.append(label_ids)
+
+    predictions = np.hstack(predictions)
+    true_labels = np.hstack(true_labels)
+
+    precision = precision_score(true_labels, predictions)
+    recall = recall_score(true_labels, predictions)
+    f1score = f1_score(true_labels, predictions)
+
+    print(f"f1-score: {f1score}, precision: {precision}, recall: {recall}")
+
+
+    # Gab dataset:
+    # Running Validation...
+    #   Accuracy: 0.91
+    # f1-score: 0.9, precision: 0.9, recall: 0.9
+    #   Validation Loss: 0.25
+    #   Validation took: 0:00:44
+    #
+    # Training complete!
+    # Total training took 0:26:04 (h:mm:ss)
+    # f1-score: 0.8998982015609094, precision: 0.8953409858203917, recall: 0.9045020463847203
+
+    # Reddit: f1-score: 0.8062157221206582, precision: 0.8136531365313653, recall: 0.7989130434782609
+
+    # Slovenian dataset: tested pretrained on Gab:
+    # f1-score: 0.35710349388294943, precision: 0.2642740619902121, recall: 0.5504587155963303
