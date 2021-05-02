@@ -189,7 +189,7 @@ if __name__ == '__main__':
     ft_en = fasttext.load_model('../data/fasttext_models/wiki.en.bin')
     print('Model loaded')
 
-    dataset = 'gab'
+    dataset = 'reddit'
 
     if dataset == 'FOX':
         data = read_fox_comments_dataset()
@@ -236,4 +236,60 @@ if __name__ == '__main__':
     print(f'F1 score: {f1_score(y_test, y_bin)}')
 
     stop = 0
+
+    # GAB data, wiki
+    # Average
+    # probability
+    # of
+    # all
+    # words in train
+    # set: 0.5678504185033753
+    # Average: [0.56785042 0.56785042], number: [328346 328346]
+    # Mean:
+    # 0.881173255321606
+    # 0.7951422302629046
+    # Logit:
+    # 0.8994187613072097
+    # 0.703991685592209
+    # Product:
+    # 0.648138881404211
+    # Product
+    # inverted:
+    # 0.5432849609299819
+    # Fitting
+    # SVM
+    # Testing
+    # Accuracy: 0.8489607390300231
+    # Precision: 0.8834555827220864
+    # Recall: 0.757247642333217
+    # F1
+    # score: 0.8154974609742336
+
+    # REDDIT data, wiki
+    # Average
+    # probability
+    # of
+    # all
+    # words in train
+    # set: 0.5697244711031356
+    # Average: [0.56972447 0.56972447], number: [212431 212431]
+    # Mean:
+    # 0.6136312471859523
+    # 0.8861999099504727
+    # Logit:
+    # 0.7701485817199459
+    # 0.8044236830256641
+    # Product:
+    # 0.8129783881134625
+    # Product
+    # inverted:
+    # 0.7619878433138226
+    # Fitting
+    # SVM
+    # Testing
+    # Accuracy: 0.8815848716794237
+    # Precision: 0.8418430884184309
+    # Recall: 0.6288372093023256
+    # F1
+    # score: 0.7199148029818956
 
