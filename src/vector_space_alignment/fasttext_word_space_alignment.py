@@ -4,13 +4,13 @@ import numpy as np
 import pickle
 
 
-def load_models(download=False):
+def load_models(name_slo, name_en, download=False):
     if download:
         fasttext.util.download_model('en', if_exists='ignore')  # English
         fasttext.util.download_model('sl', if_exists='ignore')  # Slovene
 
-    ft_en = fasttext.load_model('../data/fasttext_models/cc.en.300.bin')
-    ft_slo = fasttext.load_model('../data/fasttext_models/cc.sl.300.bin')
+    ft_en = fasttext.load_model(f'../data/fasttext_models/{name_en}')
+    ft_slo = fasttext.load_model(f'../data/fasttext_models/{name_slo}')
 
     return ft_en, ft_slo
 
@@ -29,7 +29,7 @@ def make_emb_matrices(model_eng, model_slo, path_to_dictionary, emb_dim):
 
 if __name__ == '__main__':
 
-    ft_en, ft_slo = load_models()
+    ft_en, ft_slo = load_models('wiki.sl.bin', 'wiki.en.bin')
     dim = ft_en.get_dimension()
 
     X, Y = make_emb_matrices(ft_en, ft_slo, '../data/words_dict/sl_en_train.txt', dim)
@@ -65,3 +65,5 @@ if __name__ == '__main__':
     # on train data:
     print(f'Aligned train data: {sum(np.diag(Y_norm.T @ (W_norm @ X_norm))) / X.shape[1]}')
     print(f'Not aligned train data: {sum(np.diag(Y_norm.T @ X_norm)) / X.shape[1]}')
+
+    print(f'Aligned train data not normalized: {sum(np.diag(Y_norm.T @ (W @ X_norm))) / X.shape[1]}')
