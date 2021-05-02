@@ -26,6 +26,36 @@ def read_fox_comments_dataset():
     return df
 
 
+def filter_gab_reddit_comment(comment):
+    comment = re.sub(r'http\S+', '', comment)
+    comment = re.sub(r'\t', '', comment)
+    comment = ".".join(comment.split(".")[1:])
+    comment = remove_emojies(comment)
+    return comment.strip()
+
+
+def parse_gab_reddit_dataset(filename):
+    df = pd.read_csv(filename, dtype=str)
+
+    all_comments = []
+    for idx, row in df.iterrows():
+        try:
+            comments = row["text"]
+            hate_speech_idx = json.loads(row["hate_speech_idx"]) if not pd.isnull(row["hate_speech_idx"]) and "n/a" not in row["hate_speech_idx"] else []
+
+            comments_row = [(int(el.split(".")[0]), filter_gab_reddit_comment(el)) for el in comments.split("\n") if len(el.strip()) > 0]
+            comments_row_labeled = [(el[0] in hate_speech_idx, el[1]) for el in comments_row if len(el[1]) > 0]
+            all_comments += comments_row_labeled
+        except:
+            print("Error occured, continuing..")
+
+    df_cleaned = pd.DataFrame()
+    df_cleaned["comment"] = [el[1] for el in all_comments]
+    df_cleaned["label"] = [el[0] for el in all_comments]
+
+    return df_cleaned
+
+
 def frequencies(model, data, n_hate, n_nothate):
     counts = {}
     probabilities = {}
@@ -71,14 +101,14 @@ def find_best_combination(train_data, model, probabilities):
 
         p1 = np.mean(probs)
 
-        probs_avoid_zero_division = np.array([min(1 - 1e-5, p) for p in probs])
+        probs_avoid_zero_division = np.array([max(1e-5, min(1 - 1e-5, p)) for p in probs])
         logit_probs = np.log(probs_avoid_zero_division / (1 - probs_avoid_zero_division)) / logit_coef
         logit_probs = [min(100, max(-100, l)) for l in logit_probs]
         p2 = 1 / (1 + np.exp(-np.mean(logit_probs)))
 
         # p3 = np.prod(probs / avg_prob) / 2  # 0.91
         # p3 = np.prod(probs * 2) / 2  # multiplication by 2 so that 0.5 is neutral -- 0.94
-        p3 = np.prod(probs / 0.523) / 2  # average prob vseh besed 0.96
+        p3 = np.prod(probs / 0.5653) / 2  # average prob vseh besed 0.523 za fox --> 0.96
 
         # p4 = np.prod((1 - probs) / avg_prob) / 2  # probabilities turned around, so that 0 is hate speech
         p4 = np.prod((1 - probs) / 0.523) / 2
@@ -139,7 +169,7 @@ def predict_new(ft_model, reg_model, sentences, log_coef):
         probs = reg_model.predict(embeddings)
 
         # combine word probabilities into sentence probability
-        probs_avoid_zero_division = np.array([min(1 - 1e-5, p) for p in probs])
+        probs_avoid_zero_division = np.array([max(1e-5, min(1 - 1e-5, p)) for p in probs])
         logit_probs = np.log(probs_avoid_zero_division / (1 - probs_avoid_zero_division)) / log_coef
         logit_probs = [min(100, max(-100, l)) for l in logit_probs]
         prob = 1 / (1 + np.exp(-np.mean(logit_probs)))
@@ -159,21 +189,29 @@ if __name__ == '__main__':
     ft_en = fasttext.load_model('../data/fasttext_models/wiki.en.bin')
     print('Model loaded')
 
-    # need to combine more datasets
-    fox = read_fox_comments_dataset()
+    dataset = 'gab'
 
-    fox_index = fox.index.values
+    if dataset == 'FOX':
+        data = read_fox_comments_dataset()
+        data = data.rename(columns={'text': 'comment'})
+
+    elif dataset == 'gab' or 'reddit':
+        data = parse_gab_reddit_dataset(f'../data/{dataset}.csv')
+    else:
+        print('Unknown dataset')
+
+    data_index = data.index.values
     np.random.seed(42)
-    test_index = np.random.choice(fox_index, round(0.1*len(fox_index)), replace=False)
+    test_index = np.random.choice(data_index, round(0.2*len(data_index)), replace=False)
 
-    fox_train = fox[~fox.index.isin(test_index)]
-    n_hate = fox_train[fox_train['label'] == 1].shape[0]
-    n_not_hate = fox_train[fox_train['label'] == 0].shape[0]
+    train = data[~data.index.isin(test_index)]
+    n_hate = train[train['label'] == 1].shape[0]
+    n_not_hate = train[train['label'] == 0].shape[0]
 
-    counts, probabilities = frequencies(ft_en, fox_train, n_hate, n_not_hate)
+    counts, probabilities = frequencies(ft_en, train, n_hate, n_not_hate)
 
     # comparing different options for combining word probabilities
-    df, avg_prob = find_best_combination(fox_train, ft_en, probabilities)     # --> best logit coef 4
+    df, avg_prob = find_best_combination(train, ft_en, probabilities)     # --> best logit coef 4
 
     # making embeddings from probabilities
     X, y = make_embeddings_and_target(ft_en, probabilities)
@@ -183,14 +221,14 @@ if __name__ == '__main__':
     svm_prob_predictor.fit(X, y)
 
     print('Testing')
-    fox_test = fox[fox.index.isin(test_index)]
+    test = data[data.index.isin(test_index)]
 
-    y_test = fox_test['label'].values
-    sentences = fox_test['text'].values
+    y_test = test['label'].values
+    sentences = test['comment'].values
 
     y_predictions = predict_new(ft_en, svm_prob_predictor, sentences, 4)
 
-    y_bin = y_predictions > avg_prob
+    y_bin = y_predictions > 0.5
 
     print(f'Accuracy: {accuracy_score(y_test, y_bin)}')
     print(f'Precision: {precision_score(y_test, y_bin)}')
