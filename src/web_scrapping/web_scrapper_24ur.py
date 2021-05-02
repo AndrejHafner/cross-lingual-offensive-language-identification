@@ -122,7 +122,7 @@ def get_already_scrapped_urls(dir):
 
 if __name__ == '__main__':
     base_url = "https://www.24ur.com/arhiv"
-    save_dir = "./data/articles_24ur"
+    save_dir = "../data/articles_24ur"
 
     # Get the webdriver
     driver = webdriver.Chrome("./drivers/chromedriver_90.exe")
@@ -141,7 +141,7 @@ if __name__ == '__main__':
     # Used for sequential naming of articles
     article_count = len(os.listdir(save_dir))
 
-    for page_url in get_page_url(base_url, max_pages=100):
+    for page_url in get_page_url(base_url, max_pages=200):
         driver.get(page_url)
 
         # Get timeline container

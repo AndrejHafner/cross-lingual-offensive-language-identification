@@ -132,3 +132,4 @@ dmypy.json
 
 src/web_scrapping/drivers
 src/web_scrapping/data
+src/data
