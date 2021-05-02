@@ -1,7 +1,14 @@
+import re
+
 import numpy as np
 import pandas as pd
 import json
 import fasttext.util
+
+from sklearn import svm
+from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
+
+from src.web_scrapping.utils import remove_emojies
 
 
 def read_fox_comments_dataset():
@@ -46,7 +53,7 @@ def frequencies(model, data, n_hate, n_nothate):
 
 
 def find_best_combination(train_data, model, probabilities):
-    logit_coef = 6     # 0.974 na 4
+    logit_coef = 4     # 0.974 na 4
 
     df = pd.DataFrame(columns=['label', 'p1', 'p2', 'p3', 'p4', 'sentence'])
     average = np.array([0., 0.])
@@ -102,7 +109,45 @@ def find_best_combination(train_data, model, probabilities):
     l4 = df['p1'].values < 0.2
     print(sum(l4 == df['label'].values) / df.shape[0])
 
-    return df
+    return df, avg_prob
+
+
+def make_embeddings_and_target(model, probabilities):
+    n = len(probabilities)
+    X = np.zeros((n, model.get_dimension()))
+    y = np.zeros(n)
+
+    for i, word in enumerate(probabilities.keys()):
+        X[i, :] = model.get_word_vector(word)
+        y[i] = probabilities[word]
+
+    return X, y
+
+
+def predict_new(ft_model, reg_model, sentences, log_coef):
+    predictions = []
+
+    for sent in sentences:
+        words = ft_model.get_line(sent)[0]
+        embeddings = np.zeros((len(words), ft_model.get_dimension()))
+        for i, word in enumerate(words):
+            # get embedding
+            word = word.lower().strip(',.?!"\'-~')
+            embeddings[i, :] = ft_model.get_word_vector(word)
+
+            # get probability embedding belongs to hate word
+        probs = reg_model.predict(embeddings)
+
+        # combine word probabilities into sentence probability
+        probs_avoid_zero_division = np.array([min(1 - 1e-5, p) for p in probs])
+        logit_probs = np.log(probs_avoid_zero_division / (1 - probs_avoid_zero_division)) / log_coef
+        logit_probs = [min(100, max(-100, l)) for l in logit_probs]
+        prob = 1 / (1 + np.exp(-np.mean(logit_probs)))
+
+        # change into 1 and 0?
+        predictions.append(prob)
+
+    return np.array(predictions)
 
 
 if __name__ == '__main__':
@@ -112,6 +157,7 @@ if __name__ == '__main__':
 
     # ft_en = fasttext.load_model('../data/fasttext_models/cc.en.300.bin')
     ft_en = fasttext.load_model('../data/fasttext_models/wiki.en.bin')
+    print('Model loaded')
 
     # need to combine more datasets
     fox = read_fox_comments_dataset()
@@ -127,7 +173,29 @@ if __name__ == '__main__':
     counts, probabilities = frequencies(ft_en, fox_train, n_hate, n_not_hate)
 
     # comparing different options for combining word probabilities
-    df = find_best_combination(fox_train, ft_en, probabilities)
+    df, avg_prob = find_best_combination(fox_train, ft_en, probabilities)     # --> best logit coef 4
+
+    # making embeddings from probabilities
+    X, y = make_embeddings_and_target(ft_en, probabilities)
+
+    svm_prob_predictor = svm.SVR()
+    print('Fitting SVM')
+    svm_prob_predictor.fit(X, y)
+
+    print('Testing')
+    fox_test = fox[fox.index.isin(test_index)]
+
+    y_test = fox_test['label'].values
+    sentences = fox_test['text'].values
+
+    y_predictions = predict_new(ft_en, svm_prob_predictor, sentences, 4)
+
+    y_bin = y_predictions > avg_prob
+
+    print(f'Accuracy: {accuracy_score(y_test, y_bin)}')
+    print(f'Precision: {precision_score(y_test, y_bin)}')
+    print(f'Recall: {recall_score(y_test, y_bin)}')
+    print(f'F1 score: {f1_score(y_test, y_bin)}')
 
     stop = 0
 
