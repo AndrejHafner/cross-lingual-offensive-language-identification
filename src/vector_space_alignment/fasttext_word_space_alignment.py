@@ -29,7 +29,14 @@ def make_emb_matrices(model_eng, model_slo, path_to_dictionary, emb_dim):
 
 if __name__ == '__main__':
 
-    ft_en, ft_slo = load_models('wiki.sl.bin', 'wiki.en.bin')
+    # choose: (wiki should be better)
+    # pretrained = 'first'
+    pretrained = 'wiki'
+
+    if pretrained == 'wiki':
+        ft_en, ft_slo = load_models('wiki.sl.bin', 'wiki.en.bin')
+    else:
+        ft_en, ft_slo = load_models('cc.sl.300.bin', 'cc.en.300.bin')
     dim = ft_en.get_dimension()
 
     X, Y = make_emb_matrices(ft_en, ft_slo, '../data/words_dict/sl_en_train.txt', dim)
@@ -45,7 +52,7 @@ if __name__ == '__main__':
     U, _, Vt = np.linalg.svd(Y_norm @ X_norm.T)
     W_norm = U @ Vt
 
-    with open('../data/W_norm.pickle', 'wb') as f:
+    with open(f'../data/W_{pretrained}.pickle', 'wb') as f:
         pickle.dump(W_norm, f)
 
     X_test, Y_test = make_emb_matrices(ft_en, ft_slo, '../data/words_dict/sl_en_test.txt', dim)
