@@ -199,12 +199,15 @@ if __name__ == '__main__':
         data = parse_gab_reddit_dataset(f'../data/{dataset}.csv')
     else:
         print('Unknown dataset')
+        exit(-1)
 
     data_index = data.index.values
     np.random.seed(42)
     test_index = np.random.choice(data_index, round(0.2*len(data_index)), replace=False)
 
     train = data[~data.index.isin(test_index)]
+    test = data[data.index.isin(test_index)]
+
     n_hate = train[train['label'] == 1].shape[0]
     n_not_hate = train[train['label'] == 0].shape[0]
 
@@ -221,7 +224,6 @@ if __name__ == '__main__':
     svm_prob_predictor.fit(X, y)
 
     print('Testing')
-    test = data[data.index.isin(test_index)]
 
     y_test = test['label'].values
     sentences = test['comment'].values
