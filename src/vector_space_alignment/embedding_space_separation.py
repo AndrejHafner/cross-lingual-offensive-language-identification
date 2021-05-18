@@ -1,3 +1,4 @@
+import pickle
 import re
 
 import numpy as np
@@ -7,6 +8,7 @@ import fasttext.util
 
 from sklearn import svm
 from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
+from xgboost import XGBRegressor
 
 from src.web_scrapping.utils import remove_emojies
 
@@ -54,6 +56,26 @@ def parse_gab_reddit_dataset(filename):
     df_cleaned["label"] = [el[0] for el in all_comments]
 
     return df_cleaned
+
+
+def load_data(dataset):
+    if dataset == 'FOX':
+        data = read_fox_comments_dataset()
+        data = data.rename(columns={'text': 'comment'})
+
+    elif dataset == 'gab' or 'reddit':
+        data = parse_gab_reddit_dataset(f'../data/{dataset}.csv')
+    else:
+        print('Unknown dataset')
+        exit(-1)
+
+    data_index = data.index.values
+    np.random.seed(42)
+    test_index = np.random.choice(data_index, round(0.2*len(data_index)), replace=False)
+
+    train = data[~data.index.isin(test_index)]
+    test = data[data.index.isin(test_index)]
+    return train, test
 
 
 def frequencies(model, data, n_hate, n_nothate):
@@ -191,22 +213,7 @@ if __name__ == '__main__':
 
     dataset = 'reddit'
 
-    if dataset == 'FOX':
-        data = read_fox_comments_dataset()
-        data = data.rename(columns={'text': 'comment'})
-
-    elif dataset == 'gab' or 'reddit':
-        data = parse_gab_reddit_dataset(f'../data/{dataset}.csv')
-    else:
-        print('Unknown dataset')
-        exit(-1)
-
-    data_index = data.index.values
-    np.random.seed(42)
-    test_index = np.random.choice(data_index, round(0.2*len(data_index)), replace=False)
-
-    train = data[~data.index.isin(test_index)]
-    test = data[data.index.isin(test_index)]
+    train, test = load_data(dataset)
 
     n_hate = train[train['label'] == 1].shape[0]
     n_not_hate = train[train['label'] == 0].shape[0]
@@ -214,7 +221,8 @@ if __name__ == '__main__':
     counts, probabilities = frequencies(ft_en, train, n_hate, n_not_hate)
 
     # comparing different options for combining word probabilities
-    df, avg_prob = find_best_combination(train, ft_en, probabilities)     # --> best logit coef 4
+    df, avg_prob = find_best_combination(train, ft_en, probabilities)
+    # --> best combination is with logit coef 4
 
     # making embeddings from probabilities
     X, y = make_embeddings_and_target(ft_en, probabilities)
@@ -222,6 +230,14 @@ if __name__ == '__main__':
     svm_prob_predictor = svm.SVR()
     print('Fitting SVM')
     svm_prob_predictor.fit(X, y)
+    with open(f'../data/SVM_prob_predictor_reddit.pickle', 'wb') as f:
+        pickle.dump(svm_prob_predictor, f)
+
+    # xgb_predictor = XGBRegressor()
+    # print('Fitting XGB')
+    # xgb_predictor.fit(X, y)
+    # with open(f'../data/XGB_prob_predictor_reddit.pickle', 'wb') as f:
+    #     pickle.dump(xgb_predictor, f)
 
     print('Testing')
 
@@ -229,6 +245,7 @@ if __name__ == '__main__':
     sentences = test['comment'].values
 
     y_predictions = predict_new(ft_en, svm_prob_predictor, sentences, 4)
+    # y_predictions = predict_new(ft_en, xgb_predictor, sentences, 4)
 
     y_bin = y_predictions > 0.5
 
@@ -266,6 +283,13 @@ if __name__ == '__main__':
     # Recall: 0.757247642333217
     # F1
     # score: 0.8154974609742336
+    # _____________________________
+    # Fitting XGB
+    # Testing
+    # Accuracy: 0.7862971516551194
+    # Precision: 0.8261831048208758
+    # Recall: 0.6524624519734544
+    # F1 score: 0.7291178766588603
 
     # REDDIT data, wiki
     # Average
@@ -294,4 +318,11 @@ if __name__ == '__main__':
     # Recall: 0.6288372093023256
     # F1
     # score: 0.7199148029818956
+    # ______________________________
+    # Fitting XGB
+    # Testing
+    # Accuracy: 0.7793786582620441
+    # Precision: 0.88
+    # Recall: 0.10232558139534884
+    # F1 score: 0.18333333333333332
 

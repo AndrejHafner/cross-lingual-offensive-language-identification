@@ -53,7 +53,7 @@ if __name__ == '__main__':
     W_norm = U @ Vt
 
     with open(f'../data/W_{pretrained}.pickle', 'wb') as f:
-        pickle.dump(W_norm, f)
+        pickle.dump(W, f)
 
     X_test, Y_test = make_emb_matrices(ft_en, ft_slo, '../data/words_dict/sl_en_test.txt', dim)
 
@@ -74,3 +74,12 @@ if __name__ == '__main__':
     print(f'Not aligned train data: {sum(np.diag(Y_norm.T @ X_norm)) / X.shape[1]}')
 
     print(f'Aligned train data not normalized: {sum(np.diag(Y_norm.T @ (W @ X_norm))) / X.shape[1]}')
+
+    # WIKI
+    # Average cosine similarity of Slovene and English embeddings before alignment: 0.008255468048120653
+    # Average cosine similarity of aligned embeddings: 0.5114160584787307
+    # Average cosine similarity of aligned embeddings with normalization: 0.5124625955303455
+    # Aligned train data: 0.5695967800690408
+    # Not aligned train data: 0.008180174556113636
+    # Aligned train data not normalized: 0.5662968960514837
+
