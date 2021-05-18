@@ -27,13 +27,14 @@ if __name__ == '__main__':
 
     slo_emb_to_eng = W @ X
 
-    probabilities = svm_prob_predictor.predict(slo_emb_to_eng.T)
+    probabilities_slo = svm_prob_predictor.predict(slo_emb_to_eng.T)
+    prob_eng = svm_prob_predictor.predict(Y.T)
 
-    for i in range(probabilities.shape[0]):
-        if probabilities[i] > 0.6 or probabilities[i] < 0.3:
+    for i in range(probabilities_slo.shape[0]):
+        if probabilities_slo[i] > 0.6 or probabilities_slo[i] < 0.3:
             if i >= Y.shape[1]:
-                print(f'Word {hate[i-Y.shape[1]]} has probability: {probabilities[i]}.')
+                print(f'Word {hate[i-Y.shape[1]]} has probability: {probabilities_slo[i]}.')
             else:
-                print(f'Word {dictionary[i, 0]} has probability: {probabilities[i]}.')
+                print(f'Word {dictionary[i, 0]} has probability: {probabilities_slo[i]}. Eng: {prob_eng[i]}')
 
     t = 0
