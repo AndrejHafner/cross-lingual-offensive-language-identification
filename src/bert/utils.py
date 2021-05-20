@@ -1,26 +1,17 @@
 import datetime
 
 import numpy as np
-import pandas as pd
-import json
+import torch
 
-from tqdm import tqdm
+def get_torch_device():
+    # Check for GPU...
+    if torch.cuda.is_available():
+        print('GPU:', torch.cuda.get_device_name(0))
+        return torch.device("cuda")
 
-
-def read_fox_comments_dataset():
-    """
-    Read the FOX news comments dataset
-    :return: Dataframe containing the comment and label for hate or not (1,0)
-    """
-    with open("../data/fox-news-comments-master/fox-news-comments.json") as f:
-        df = pd.DataFrame([json.loads(line) for line in f.readlines()])
-
-    # Remove irrelevant columns
-    for col_name in ["title", "succ", "meta", "user", "mentions", "prev"]:
-        del df[col_name]
-
-    return df
-
+    else:
+        print('No GPU available, using the CPU instead.')
+        return torch.device("cpu")
 
 def format_time(elapsed):
     '''

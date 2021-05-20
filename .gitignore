@@ -133,3 +133,4 @@ dmypy.json
 src/web_scrapping/drivers
 src/web_scrapping/data
 src/data
+src/multilingual_translate_with_bert/translation/gcloud-access-key.json

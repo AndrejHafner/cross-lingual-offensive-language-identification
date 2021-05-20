@@ -45,7 +45,8 @@ def parse_slovenian_hate_speech_dataset(filename):
 if __name__ == '__main__':
     max_length = 64
 
-    df_slo = parse_slovenian_hate_speech_dataset("../data/slovenian-twitter-hatespeech/hate_speech_data_evaluation.json")
+    df_slo = parse_slovenian_hate_speech_dataset(
+        "../../data/slovenian-twitter-hatespeech/hate_speech_data_evaluation.json")
     x_test = df_slo["text"].values
     y_test = df_slo["label"].values
 
@@ -62,7 +63,7 @@ if __name__ == '__main__':
         batch_size=32  # Evaluate with this batch size.
     )
 
-    model = BertForSequenceClassification.from_pretrained("../data/models/crosloen_bert/")
+    model = BertForSequenceClassification.from_pretrained("../../data/models/crosloen_bert/")
     # TODO: Load trained model
     # model.bert.load_state_dict(torch.load("../data/models/crosloen_bert/pytorch_model.bin"))
     model.cuda()

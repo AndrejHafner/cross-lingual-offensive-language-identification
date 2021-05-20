@@ -21,9 +21,6 @@ def check_exists_by_class(driver, css_class, timeout=1):
         return False
     return True
 
-def remove_emojies(text):
-    return emoji.get_emoji_regexp().sub(r'', text)
-
 def save_json_metadata(dir, filename, obj):
     with open(f"{os.path.join(dir, filename)}.json", "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False)
