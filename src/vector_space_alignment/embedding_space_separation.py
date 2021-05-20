@@ -164,7 +164,18 @@ def find_best_combination(train_data, model, probabilities):
     return df, avg_prob
 
 
-def make_embeddings_and_target(model, probabilities):
+def make_embeddings_and_target(model, dataset):
+    train, test = load_data(dataset)
+
+    n_hate = train[train['label'] == 1].shape[0]
+    n_not_hate = train[train['label'] == 0].shape[0]
+
+    counts, probabilities = frequencies(model, train, n_hate, n_not_hate)
+
+    # comparing different options for combining word probabilities
+    # df, avg_prob = find_best_combination(train, ft_en, probabilities)
+    # --> best combination is with logit coef 4???
+
     n = len(probabilities)
     X = np.zeros((n, model.get_dimension()))
     y = np.zeros(n)
@@ -173,31 +184,75 @@ def make_embeddings_and_target(model, probabilities):
         X[i, :] = model.get_word_vector(word)
         y[i] = probabilities[word]
 
-    return X, y
+    return X, y, test
 
 
-def predict_new(ft_model, reg_model, sentences, log_coef):
+def sentence_probability_log(word_probabilities, log_coef=4):
+    probs_avoid_zero_division = np.array([max(1e-5, min(1 - 1e-5, p)) for p in word_probabilities])
+    logit_probs = np.log(probs_avoid_zero_division / (1 - probs_avoid_zero_division)) / log_coef
+    logit_probs = [min(100, max(-100, l)) for l in logit_probs]
+    prob = 1 / (1 + np.exp(-np.mean(logit_probs)))
+    return prob
+
+
+def predict_new(ft_model, reg_model, sentences, lang='eng', W=None, normalize=False, sent_fun='log'):
     predictions = []
+
+    # too speed up the predictions, we will save already calculated word probabilities
+    known_prob = {}
 
     for sent in sentences:
         words = ft_model.get_line(sent)[0]
-        embeddings = np.zeros((len(words), ft_model.get_dimension()))
-        for i, word in enumerate(words):
-            # get embedding
+        unknown_words = []
+        probs = []
+        for word in words:
             word = word.lower().strip(',.?!"\'-~')
-            embeddings[i, :] = ft_model.get_word_vector(word)
+            if word == '':
+                continue
+            if word in known_prob.keys():
+                probs.append(known_prob[word])
+            else:
+                unknown_words.append(word)
+        probs = np.array(probs)
+
+        if len(unknown_words) > 0:
+            embeddings = np.zeros((len(unknown_words), ft_model.get_dimension()))
+            for i, word in enumerate(unknown_words):
+                # get embedding
+                embed = ft_model.get_word_vector(word)
+                if normalize:
+                    embed = embed / np.linalg.norm(embed)
+                    # if np.isnan(sum(embed_norm)):
+                    #     test = 0
+                    # else:
+                    #     embed = embed_norm
+                embeddings[i, :] = embed
+
+            if lang == 'slo':
+                embeddings = embeddings @ W.T   # embeddings are in rows - we need to multiply from right with W.T
+
+            emb_probs = reg_model.predict(embeddings)
+
+            # append newly calculated probabilities to known probabilities
+            for k, v in zip(unknown_words, emb_probs):
+                known_prob[k] = v
 
             # get probability embedding belongs to hate word
-        probs = reg_model.predict(embeddings)
+            probs = np.hstack([probs, emb_probs])
 
         # combine word probabilities into sentence probability
-        probs_avoid_zero_division = np.array([max(1e-5, min(1 - 1e-5, p)) for p in probs])
-        logit_probs = np.log(probs_avoid_zero_division / (1 - probs_avoid_zero_division)) / log_coef
-        logit_probs = [min(100, max(-100, l)) for l in logit_probs]
-        prob = 1 / (1 + np.exp(-np.mean(logit_probs)))
+        if sent_fun == 'log':
+            sent_prob = sentence_probability_log(probs)
+        elif sent_fun == 'mean':
+            sent_prob = np.mean(probs)
+        elif sent_fun == 'prod':
+            sent_prob = np.prod(probs / 0.5) / 2
+        else:
+            print('Wrong function choice for sentence probability calculation! Choose between log, mean and prod.')
+            sent_prob = 0
 
         # change into 1 and 0?
-        predictions.append(prob)
+        predictions.append(sent_prob)
 
     return np.array(predictions)
 
@@ -211,27 +266,22 @@ if __name__ == '__main__':
     ft_en = fasttext.load_model('../data/fasttext_models/wiki.en.bin')
     print('Model loaded')
 
-    dataset = 'reddit'
+    dataset = 'gab'
 
-    train, test = load_data(dataset)
+    # making embeddings and their target probabilities
+    X, y, test = make_embeddings_and_target(ft_en, dataset)
 
-    n_hate = train[train['label'] == 1].shape[0]
-    n_not_hate = train[train['label'] == 0].shape[0]
+    # normalize embedding vectors to length 1 (normalizing rows - axis 1)
+    X_norm = (X.T/np.linalg.norm(X, axis=1)).T
 
-    counts, probabilities = frequencies(ft_en, train, n_hate, n_not_hate)
-
-    # comparing different options for combining word probabilities
-    df, avg_prob = find_best_combination(train, ft_en, probabilities)
-    # --> best combination is with logit coef 4
-
-    # making embeddings from probabilities
-    X, y = make_embeddings_and_target(ft_en, probabilities)
-
-    svm_prob_predictor = svm.SVR()
+    svm_prob_predictor = svm.SVR(kernel='linear')
     print('Fitting SVM')
-    svm_prob_predictor.fit(X, y)
-    with open(f'../data/SVM_prob_predictor_reddit.pickle', 'wb') as f:
+    svm_prob_predictor.fit(X_norm, y)
+    with open(f'../data/SVM_prob_predictor_gab_norm_lin.pickle', 'wb') as f:
         pickle.dump(svm_prob_predictor, f)
+
+    # with open(f'../data/SVM_prob_predictor_gab_4.pickle', 'rb') as f:
+    #     svm_prob_predictor = pickle.load(f)
 
     # xgb_predictor = XGBRegressor()
     # print('Fitting XGB')
@@ -244,7 +294,7 @@ if __name__ == '__main__':
     y_test = test['label'].values
     sentences = test['comment'].values
 
-    y_predictions = predict_new(ft_en, svm_prob_predictor, sentences, 4)
+    y_predictions = predict_new(ft_en, svm_prob_predictor, sentences, 'eng', None, True)
     # y_predictions = predict_new(ft_en, xgb_predictor, sentences, 4)
 
     y_bin = y_predictions > 0.5
@@ -283,6 +333,46 @@ if __name__ == '__main__':
     # Recall: 0.757247642333217
     # F1
     # score: 0.8154974609742336
+    #
+    # Fitting SVM rbf norm
+    # Testing
+    # Accuracy: 0.7832178598922248
+    # Precision: 0.6991513824254038
+    # Recall: 0.8920712539294446
+    # F1 score: 0.783916513198281
+    #
+    # Fitting SVM - polynomial (3)
+    # Testing
+    # Accuracy: 0.8532717474980754
+    # Precision: 0.9081196581196581
+    # Recall: 0.7422284317149843
+    # F1 score: 0.8168364405150874
+
+    # Fitting SVM - linear
+    # Testing
+    # Accuracy: 0.7578137028483449
+    # Precision: 0.9504189944134078
+    # Recall: 0.47537548026545584
+    # F1 score: 0.6337601862630967
+    # Fitting SVM - linear NORM
+    # Testing
+    # Accuracy: 0.789838337182448
+    # Precision: 0.8410746812386156
+    # Recall: 0.6451274886482711
+    # F1 score: 0.7301838307966001
+
+    # Fitting SVM - quad
+    # Testing
+    # Accuracy: 0.85635103926097
+    # Precision: 0.8796223446105429
+    # Recall: 0.7809989521480964
+    # F1 score: 0.8273820536540241
+    # Fitting SVM - 4
+    # Testing
+    # Accuracy: 0.828175519630485
+    # Precision: 0.9296606000983768
+    # Recall: 0.6601466992665037
+    # F1 score: 0.7720588235294119
     # _____________________________
     # Fitting XGB
     # Testing
@@ -318,6 +408,13 @@ if __name__ == '__main__':
     # Recall: 0.6288372093023256
     # F1
     # score: 0.7199148029818956
+    #
+    # Fitting SVM - poly 2
+    # Testing
+    # Accuracy: 0.8624493471409275
+    # Precision: 0.8659305993690851
+    # Recall: 0.5106976744186047
+    # F1 score: 0.6424809830310123
     # ______________________________
     # Fitting XGB
     # Testing
