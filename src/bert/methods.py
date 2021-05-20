@@ -1,14 +1,14 @@
 import random
 import time
-
 import nltk
 import numpy as np
 import torch
+
 from sklearn.metrics import f1_score, recall_score, precision_score
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from tqdm import tqdm
 
-from src.utils import format_time, flat_accuracy
+from utils import format_time, flat_accuracy
 
 nltk.download('punkt')
 
@@ -102,10 +102,9 @@ def train(model, optimizer, scheduler, train_dataloader, validation_dataloader, 
             # Perform a forward pass (evaluate the model on this training batch).
             # The documentation for this `model` function is here:
             # https://huggingface.co/transformers/v2.2.0/model_doc/bert.html#transformers.BertForSequenceClassification
-            # It returns different numbers of parameters depending on what arguments
-            # arge given and what flags are set. For our useage here, it returns
-            # the loss (because we provided labels) and the "logits"--the model
-            # outputs prior to activation.
+            # It returns different
+            model_output = model(b_input_mask
+                                 )
             model_output = model(b_input_ids,
                                  token_type_ids=None,
                                  attention_mask=b_input_mask,
@@ -120,8 +119,8 @@ def train(model, optimizer, scheduler, train_dataloader, validation_dataloader, 
 
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
-
             optimizer.step()
+
             scheduler.step()
 
         # Calculate the average loss over all of the batches.
@@ -176,6 +175,7 @@ def train(model, optimizer, scheduler, train_dataloader, validation_dataloader, 
 
             # Move logits and labels to CPU
             logits = logits.detach().cpu().numpy()
+
             label_ids = b_labels.to('cpu').numpy()
 
             # Calculate the accuracy for this batch of test sentences, and

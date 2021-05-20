@@ -13,8 +13,7 @@ def translate_text(text, source_lang="sl", target_lang="en"):
     text = text.replace("\n", " ").strip()
     if isinstance(text, six.binary_type):
         text = text.decode("utf-8")
-
-    # Text can also be a sequence of strings, in which case this method
+    # Translate strings from english to slovenian, in which case this method
     # will return a sequence of results for each text.
     result = translate_client.translate(text, target_language=target_lang, source_language=source_lang, format_='text')
 

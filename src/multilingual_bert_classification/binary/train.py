@@ -71,7 +71,7 @@ if __name__ == '__main__':
     #     output_hidden_states=False,
     # )
 
-    model = BertForSequenceClassification.from_pretrained("../data/models/crosloen_bert/")
+    model = BertForSequenceClassification.from_pretrained("../../data/models/crosloen_bert/")
     model.cuda()
 
     # Create the optimizer
@@ -85,7 +85,7 @@ if __name__ == '__main__':
                                                 num_warmup_steps=0,
                                                 num_training_steps=len(train_dataloader) * epochs)
 
-    train(model, optimizer, scheduler, train_dataloader, val_dataloader)
+    train(model, optimizer, scheduler, train_dataloader, val_dataloader, epochs, device)
 
 
     predictions = []
