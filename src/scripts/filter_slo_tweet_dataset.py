@@ -1,12 +1,13 @@
 import json
 import re
-
+import emoji
 
 def filter_tweet_content(content):
     # Remove ' and "
     content = content.replace('"','').replace("'", "")
     content = " ".join([el for el in content.split(" ") if not el.startswith("@")])
     content = re.sub(r'http\S+', '', content)
+    content = emoji.demojize(content)
     return content
 
 def parse_tweet_data(data):
@@ -20,7 +21,7 @@ def parse_tweet_data(data):
     return {
         "id": data["id"],
         "type": type,
-        "content": content
+        "content": content.replace("\n", "").strip()
     }
 
 

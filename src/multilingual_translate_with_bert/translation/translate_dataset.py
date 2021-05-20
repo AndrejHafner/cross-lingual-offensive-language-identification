@@ -33,7 +33,7 @@ def save_json(filename, obj):
 if __name__ == '__main__':
 
 
-    with open("../data/slovenian-twitter-hatespeech/hate_speech_slo_eval_filtered.json", "r") as f:
+    with open("../../data/slovenian-twitter-hatespeech/hate_speech_slo_eval_filtered.json", "r") as f:
         data = json.load(f)
 
     data_translated = []
@@ -42,6 +42,6 @@ if __name__ == '__main__':
     for idx, translated_comment in tqdm(enumerate(pool.imap(pool_func, data)), total=len(data)):
         data_translated.append(translated_comment)
         if idx % 100 == 0:
-            save_json("../data/slovenian-twitter-hatespeech/hate_speech_eval_filtered_translated.json", data_translated)
+            save_json("../../data/slovenian-twitter-hatespeech/hate_speech_eval_filtered_translated.json", data_translated)
 
-    save_json("../data/slovenian-twitter-hatespeech/hate_speech_eval_filtered_translated_final.json", data_translated)
+    save_json("../../data/slovenian-twitter-hatespeech/hate_speech_eval_filtered_translated_final.json", data_translated)

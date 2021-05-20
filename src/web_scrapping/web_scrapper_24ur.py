@@ -10,9 +10,9 @@ from selenium.common.exceptions import StaleElementReferenceException, TimeoutEx
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from tqdm import tqdm
 
-from utils import check_exists_by_class, remove_emojies, save_json_metadata
+from utils import check_exists_by_class, save_json_metadata
+from src.utils import remove_emojies
 
 COOKIES_BT_CSS_SEL = "body > onl-root > div.sidenav-wrapper > div.sidenav-content.takeover-base.onl-allow-takeover-click > div.container > div > onl-cookie > div > div > div > div.cookies__right > a.button.button--large.button--primary.button--expanded.button--noborder"
 WAIT_TIMEOUT = 5
