@@ -132,7 +132,8 @@ def frequencies(model, data, train_counts=None):
 
 
 def find_best_combination(train_data, model, probabilities):
-    logit_coef = 4     # 0.974 na 4
+    """Function used only when selecting best methods."""
+    logit_coef = 4
 
     df = pd.DataFrame(columns=['type', 'p1', 'p2', 'p3', 'p4', 'sentence'])
     average = np.array([0., 0.])
@@ -155,12 +156,9 @@ def find_best_combination(train_data, model, probabilities):
         logit_probs = [min(100, max(-100, l)) for l in logit_probs]
         p2 = 1 / (1 + np.exp(-np.mean(logit_probs)))
 
-        # p3 = np.prod(probs / avg_prob) / 2  # 0.91
-        # p3 = np.prod(probs * 2) / 2  # multiplication by 2 so that 0.5 is neutral -- 0.94
-        p3 = np.prod(probs / 0.5653) / 2  # average prob vseh besed 0.523 za fox --> 0.96
+        p3 = np.prod(probs / 0.5) / 2
 
-        # p4 = np.prod((1 - probs) / avg_prob) / 2  # probabilities turned around, so that 0 is hate speech
-        p4 = np.prod((1 - probs) / 0.523) / 2
+        p4 = np.prod((1 - probs) / 0.5) / 2
 
         df = df.append({'type': label, 'p1': p1, 'p2': p2, 'p3': min(p3, 1000), 'p4': p4, 'sentence': sent},
                        ignore_index=True)
@@ -201,10 +199,6 @@ def make_embeddings_and_target(model, dataset, test=False):
         data = pd.read_csv(f'../data/datasets/binary/{dataset}/test.csv')
         counts, probabilities = frequencies(model, data, counts)
 
-    # comparing different options for combining word probabilities
-    # df, avg_prob = find_best_combination(train, ft_en, probabilities)
-    # --> best combination is with logit coef 4???
-
     n = len(probabilities)
     X = np.zeros((n, model.get_dimension()))
     y = np.zeros(n)
@@ -216,11 +210,11 @@ def make_embeddings_and_target(model, dataset, test=False):
     return X, y
 
 
-def sentence_probability_log(word_probabilities, log_coef=4):
+def sentence_probability_log(word_probabilities):
     probs_avoid_zero_division = np.array([max(1e-5, min(1 - 1e-5, p)) for p in word_probabilities])
-    logit_probs = np.log(probs_avoid_zero_division / (1 - probs_avoid_zero_division)) / log_coef
+    logit_probs = np.log(probs_avoid_zero_division / (1 - probs_avoid_zero_division))
     logit_probs = [min(100, max(-100, l)) for l in logit_probs]
-    prob = 1 / (1 + np.exp(-np.mean(logit_probs) * log_coef))
+    prob = 1 / (1 + np.exp(-np.mean(logit_probs)))
     return prob
 
 
