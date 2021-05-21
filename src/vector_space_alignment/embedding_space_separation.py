@@ -83,12 +83,24 @@ def split_binary_datasets():
         test.to_csv(f'../data/datasets/{name}/test.csv')
 
 
-def frequencies(model, data):
-    counts = {}
+def frequencies(model, data, train_counts=None):
+    n_hate = 0
+    n_nothate = 0
+
+    if train_counts:
+        # if we want to calculate true probabilities on test set, we will upgrade already known probabilities
+        counts = train_counts
+        test_words = {}
+        for word in counts:
+            n_hate += counts[word][1]
+            n_nothate += counts[word][0]
+    else:
+        counts = {}
+
     probabilities = {}
 
-    n_hate = data[data['type'] == 1].shape[0]
-    n_nothate = data[data['type'] == 0].shape[0]
+    n_hate += data[data['type'] == 1].shape[0]
+    n_nothate += data[data['type'] == 0].shape[0]
 
     for sent, label in data[['content', 'type']].values:
         words = model.get_line(sent.replace("\n", ""))[0]
@@ -102,12 +114,18 @@ def frequencies(model, data):
                 counter = [0, 0]
                 counter[label] = 1
                 counts[word] = counter
+            if train_counts:
+                test_words[word] = 1
 
     for word in counts.keys():
         # normalize the change between class sizes
         counts[word][0] *= n_hate / n_nothate
 
         # ratio between appearances in hate speech and all appearances
+        if train_counts:
+            if word not in test_words.keys():
+                # we only want to return probabilities of words in test set
+                continue
         probabilities[word] = counts[word][1] / sum(counts[word])  # 1 if it only appears in hate, 0 if only in not_hate
 
     return counts, probabilities
@@ -173,14 +191,15 @@ def find_best_combination(train_data, model, probabilities):
     return df, avg_prob
 
 
-def make_embeddings_and_target(model, dataset, train=True):
+def make_embeddings_and_target(model, dataset, test=False):
 
-    if train:
-        data = pd.read_csv(f'../data/datasets/{dataset}/train.csv')
-    else:
-        data = pd.read_csv(f'../data/datasets/{dataset}/test.csv')
-
+    data = pd.read_csv(f'../data/datasets/binary/{dataset}/train.csv')
+    data['content'] = data['content'].astype(str)
     counts, probabilities = frequencies(model, data)
+
+    if test:
+        data = pd.read_csv(f'../data/datasets/binary/{dataset}/test.csv')
+        counts, probabilities = frequencies(model, data, counts)
 
     # comparing different options for combining word probabilities
     # df, avg_prob = find_best_combination(train, ft_en, probabilities)
