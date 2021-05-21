@@ -83,12 +83,24 @@ def split_binary_datasets():
         test.to_csv(f'../data/datasets/{name}/test.csv')
 
 
-def frequencies(model, data):
-    counts = {}
+def frequencies(model, data, train_counts=None):
+    n_hate = 0
+    n_nothate = 0
+
+    if train_counts:
+        # if we want to calculate true probabilities on test set, we will upgrade already known probabilities
+        counts = train_counts
+        test_words = {}
+        for word in counts:
+            n_hate += counts[word][1]
+            n_nothate += counts[word][0]
+    else:
+        counts = {}
+
     probabilities = {}
 
-    n_hate = data[data['type'] == 1].shape[0]
-    n_nothate = data[data['type'] == 0].shape[0]
+    n_hate += data[data['type'] == 1].shape[0]
+    n_nothate += data[data['type'] == 0].shape[0]
 
     for sent, label in data[['content', 'type']].values:
         words = model.get_line(sent.replace("\n", ""))[0]
@@ -102,19 +114,26 @@ def frequencies(model, data):
                 counter = [0, 0]
                 counter[label] = 1
                 counts[word] = counter
+            if train_counts:
+                test_words[word] = 1
 
     for word in counts.keys():
         # normalize the change between class sizes
         counts[word][0] *= n_hate / n_nothate
 
         # ratio between appearances in hate speech and all appearances
+        if train_counts:
+            if word not in test_words.keys():
+                # we only want to return probabilities of words in test set
+                continue
         probabilities[word] = counts[word][1] / sum(counts[word])  # 1 if it only appears in hate, 0 if only in not_hate
 
     return counts, probabilities
 
 
 def find_best_combination(train_data, model, probabilities):
-    logit_coef = 4     # 0.974 na 4
+    """Function used only when selecting best methods."""
+    logit_coef = 4
 
     df = pd.DataFrame(columns=['type', 'p1', 'p2', 'p3', 'p4', 'sentence'])
     average = np.array([0., 0.])
@@ -137,12 +156,9 @@ def find_best_combination(train_data, model, probabilities):
         logit_probs = [min(100, max(-100, l)) for l in logit_probs]
         p2 = 1 / (1 + np.exp(-np.mean(logit_probs)))
 
-        # p3 = np.prod(probs / avg_prob) / 2  # 0.91
-        # p3 = np.prod(probs * 2) / 2  # multiplication by 2 so that 0.5 is neutral -- 0.94
-        p3 = np.prod(probs / 0.5653) / 2  # average prob vseh besed 0.523 za fox --> 0.96
+        p3 = np.prod(probs / 0.5) / 2
 
-        # p4 = np.prod((1 - probs) / avg_prob) / 2  # probabilities turned around, so that 0 is hate speech
-        p4 = np.prod((1 - probs) / 0.523) / 2
+        p4 = np.prod((1 - probs) / 0.5) / 2
 
         df = df.append({'type': label, 'p1': p1, 'p2': p2, 'p3': min(p3, 1000), 'p4': p4, 'sentence': sent},
                        ignore_index=True)
@@ -173,18 +189,16 @@ def find_best_combination(train_data, model, probabilities):
     return df, avg_prob
 
 
-def make_embeddings_and_target(model, dataset, train=True):
 
-    if train:
-        data = pd.read_csv(f'../data/datasets/binary/{dataset}/train.csv')
-    else:
-        data = pd.read_csv(f'../data/datasets/binary/{dataset}/test.csv')
+def make_embeddings_and_target(model, dataset, test=False):
 
+    data = pd.read_csv(f'../data/datasets/binary/{dataset}/train.csv')
+    data['content'] = data['content'].astype(str)
     counts, probabilities = frequencies(model, data)
 
-    # comparing different options for combining word probabilities
-    # df, avg_prob = find_best_combination(train, ft_en, probabilities)
-    # --> best combination is with logit coef 4???
+    if test:
+        data = pd.read_csv(f'../data/datasets/binary/{dataset}/test.csv')
+        counts, probabilities = frequencies(model, data, counts)
 
     n = len(probabilities)
     X = np.zeros((n, model.get_dimension()))
@@ -197,11 +211,11 @@ def make_embeddings_and_target(model, dataset, train=True):
     return X, y
 
 
-def sentence_probability_log(word_probabilities, log_coef=4):
+def sentence_probability_log(word_probabilities):
     probs_avoid_zero_division = np.array([max(1e-5, min(1 - 1e-5, p)) for p in word_probabilities])
-    logit_probs = np.log(probs_avoid_zero_division / (1 - probs_avoid_zero_division)) / log_coef
+    logit_probs = np.log(probs_avoid_zero_division / (1 - probs_avoid_zero_division))
     logit_probs = [min(100, max(-100, l)) for l in logit_probs]
-    prob = 1 / (1 + np.exp(-np.mean(logit_probs) * log_coef))
+    prob = 1 / (1 + np.exp(-np.mean(logit_probs)))
     return prob
 
 

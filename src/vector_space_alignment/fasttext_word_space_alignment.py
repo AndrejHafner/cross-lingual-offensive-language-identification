@@ -38,7 +38,6 @@ def orthogonal_mapping(X, Y, normalize=False):
     return W
 
 
-
 def test_cosine_distance(X, Y, W, W_norm):
     X_test, Y_test = make_emb_matrices(ft_en, ft_slo, '../data/words_dict/sl_en_test.txt', dim)
 

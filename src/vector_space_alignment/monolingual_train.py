@@ -2,15 +2,15 @@ import fasttext
 import numpy as np
 import pickle
 from sklearn import svm
-from src.vector_space_alignment.embedding_space_separation import make_embeddings_and_target
+from src.vector_space_alignment.classification_methods import make_embeddings_and_target
 
 
 if __name__ == '__main__':
 
     # choose dataset and set parameters for training
     dataset = 'toxic'
-    normalize = True
-    kernel = 'poly'
+    normalize = False
+    kernel = 'rbf'
     degree = 2
 
     ft_en = fasttext.load_model('../data/fasttext_models/wiki.en.bin')
@@ -34,13 +34,3 @@ if __name__ == '__main__':
     # saving model
     with open(f'../data/SVM_prob_predictor_{dataset}_{norm_tag}{kernel_tag}.pickle', 'wb') as f:
         pickle.dump(svm_prob_predictor, f)
-
-    # VERJETNO SAM ZA ZBRISAT, za vsak slucaj
-    # with open(f'../data/SVM_prob_predictor_gab_4.pickle', 'rb') as f:
-    #     svm_prob_predictor = pickle.load(f)
-
-    # xgb_predictor = XGBRegressor()
-    # print('Fitting XGB')
-    # xgb_predictor.fit(X, y)
-    # with open(f'../data/XGB_prob_predictor_reddit.pickle', 'wb') as f:
-    #     pickle.dump(xgb_predictor, f)
