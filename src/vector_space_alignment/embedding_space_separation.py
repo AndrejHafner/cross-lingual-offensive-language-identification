@@ -176,9 +176,9 @@ def find_best_combination(train_data, model, probabilities):
 def make_embeddings_and_target(model, dataset, train=True):
 
     if train:
-        data = pd.read_csv(f'../data/datasets/{dataset}/train.csv')
+        data = pd.read_csv(f'../data/datasets/binary/{dataset}/train.csv')
     else:
-        data = pd.read_csv(f'../data/datasets/{dataset}/test.csv')
+        data = pd.read_csv(f'../data/datasets/binary/{dataset}/test.csv')
 
     counts, probabilities = frequencies(model, data)
 

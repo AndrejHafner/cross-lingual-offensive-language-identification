@@ -44,6 +44,15 @@ def balance_toxic_comment_dataset(filename, size=7500):
 
     return df_balanced
 
+def train_test_split(data, test_size=0.2):
+    data_index = data.index.values
+    np.random.seed(42)
+    test_index = np.random.choice(data_index, round(test_size * len(data_index)), replace=False)
+
+    train = data[~data.index.isin(test_index)]
+    test = data[data.index.isin(test_index)]
+
+    return train, test
 
 if __name__ == '__main__':
     #
@@ -51,5 +60,8 @@ if __name__ == '__main__':
     # df.to_csv("../data/toxic-comment-classification/train_relabeled.csv", index=False, header=True)
 
     df_balanced = balance_toxic_comment_dataset("../data/toxic-comment-classification/train_relabeled.csv")
-    df_balanced.to_csv("../data/toxic-comment-classification/train_relabeled_balanced.csv", index=False, header=True)
+    train, test = train_test_split(df_balanced)
+
+    train.to_csv("../data/toxic-comment-classification/final_balanced_multiclass/train.csv", index=False, header=True)
+    test.to_csv("../data/toxic-comment-classification/final_balanced_multiclass/test.csv", index=False, header=True)
 

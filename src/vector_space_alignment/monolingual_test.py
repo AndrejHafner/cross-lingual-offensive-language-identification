@@ -8,15 +8,15 @@ from src.vector_space_alignment.embedding_space_separation import predict_new
 
 if __name__ == '__main__':
     # choose dataset and set parameters for testing
-    dataset = 'toxic'
-    normalize = True
+    dataset = 'fox'
+    normalize = False
     kernel = 'rbf'
     degree = 2
 
     ft_en = fasttext.load_model('../data/fasttext_models/wiki.en.bin')
     print('Model loaded')
 
-    test = pd.read_csv(f'../data/datasets/{dataset}/test.csv')
+    test = pd.read_csv(f'../data/datasets/binary/{dataset}/test.csv')
 
     y_test = test['type'].values
     sentences = test['content'].values
@@ -28,7 +28,7 @@ if __name__ == '__main__':
     with open(f'../data/SVM_prob_predictor_{dataset}_{norm_tag}{kernel_tag}.pickle', 'rb') as f:
         svm_prob_predictor = pickle.load(f)
 
-    y_predictions = predict_new(ft_en, svm_prob_predictor, sentences, 'eng', None, True)
+    y_predictions = predict_new(ft_en, svm_prob_predictor, sentences, 'eng', None, normalize)
 
     y_bin = y_predictions > 0.5
 
@@ -38,6 +38,18 @@ if __name__ == '__main__':
     print(f'F1 score: {f1_score(y_test, y_bin)}')
 
     stop = 0
+
+# FOX
+# rbf, norm
+# Accuracy: 0.5784313725490197
+# Precision: 0.36024844720496896
+# Recall: 0.6904761904761905
+# F1 score: 0.47346938775510206
+# nenorm
+# Accuracy: 0.6862745098039216
+# Precision: 0.44
+# Recall: 0.5238095238095238
+# F1 score: 0.4782608695652174
 
 # GAB data, wiki
 # Average
