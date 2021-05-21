@@ -60,36 +60,36 @@ def parse_gab_reddit_dataset(filename):
     return df_cleaned
 
 
-def load_data(dataset):
-    if dataset == 'FOX':
-        data = read_fox_comments_dataset()
-        data = data.rename(columns={'text': 'comment'})
+def split_binary_datasets():
+    data_fox = read_fox_comments_dataset()
+    data_fox = data_fox.rename(columns={'text': 'content', 'label': 'type'})
 
-    elif dataset == 'gab' or dataset == 'reddit':
-        data = parse_gab_reddit_dataset(f'../data/{dataset}.csv')
+    data_gab = parse_gab_reddit_dataset(f'../data/gab.csv')
+    data_gab = data_gab.rename(columns={'comment': 'content', 'label': 'type'})
 
-    elif dataset == 'toxic':
-        data = balance_toxic_comment_dataset(f'../data/train_relabeled.csv', 15000)
-        data = data.rename(columns={'content': 'comment', 'type': 'label'})
-        data = data.drop(labels='id', axis=1)
-        data['label'] = np.minimum(data['label'], 1)
-    else:
-        print('Unknown dataset')
-        exit(-1)
+    data_reddit = parse_gab_reddit_dataset(f'../data/reddit.csv')
+    data_reddit = data_reddit.rename(columns={'comment': 'content', 'label': 'type'})
 
-    data_index = data.index.values
-    np.random.seed(42)
-    test_index = np.random.choice(data_index, round(0.2*len(data_index)), replace=False)
+    data_toxic = balance_toxic_comment_dataset(f'../data/train_relabeled.csv', 15000)
+    data_toxic = data_toxic.drop(labels='id', axis=1)
+    data_toxic['label'] = np.minimum(data_toxic['label'], 1)
 
-    train = data[~data.index.isin(test_index)]
-    test = data[data.index.isin(test_index)]
-    return train, test
+    for data, name in zip([data_fox, data_gab, data_reddit, data_toxic], ['fox', 'gab', 'reddit', 'toxic']):
+        data_index = data.index.values
+        np.random.seed(42)
+        test_index = np.random.choice(data_index, round(0.2*len(data_index)), replace=False)
+
+        train = data[~data.index.isin(test_index)]
+        test = data[data.index.isin(test_index)]
+
+        train.to_csv(f'../data/datasets/{name}/train.csv')
+        test.to_csv(f'../data/datasets/{name}/test.csv')
 
 
 def frequencies(model, data, n_hate, n_nothate):
     counts = {}
     probabilities = {}
-    for sent, label in data[['comment', 'label']].values:
+    for sent, label in data[['content', 'type']].values:
         words = model.get_line(sent.replace("\n", ""))[0]
         for word in words:
             word = word.lower().strip(',.?!"\'-~')
@@ -115,10 +115,10 @@ def frequencies(model, data, n_hate, n_nothate):
 def find_best_combination(train_data, model, probabilities):
     logit_coef = 4     # 0.974 na 4
 
-    df = pd.DataFrame(columns=['label', 'p1', 'p2', 'p3', 'p4', 'sentence'])
+    df = pd.DataFrame(columns=['type', 'p1', 'p2', 'p3', 'p4', 'sentence'])
     average = np.array([0., 0.])
     nr_words = np.array([0, 0])
-    for sent, label in train_data.values:
+    for sent, label in train_data[['content', 'type']].values:
         words = model.get_line(sent)[0]
         probs = np.array([])
         for word in words:
@@ -143,7 +143,7 @@ def find_best_combination(train_data, model, probabilities):
         # p4 = np.prod((1 - probs) / avg_prob) / 2  # probabilities turned around, so that 0 is hate speech
         p4 = np.prod((1 - probs) / 0.523) / 2
 
-        df = df.append({'label': label, 'p1': p1, 'p2': p2, 'p3': min(p3, 1000), 'p4': p4, 'sentence': sent},
+        df = df.append({'type': label, 'p1': p1, 'p2': p2, 'p3': min(p3, 1000), 'p4': p4, 'sentence': sent},
                        ignore_index=True)
 
     avg_prob = sum(average) / sum(nr_words)
@@ -153,32 +153,36 @@ def find_best_combination(train_data, model, probabilities):
 
     print('Mean:')
     l1 = df['p1'].values > 0.5
-    print(sum(l1 == df['label'].values) / df.shape[0])
-    print(sum((df['p1'].values > avg_prob) == df['label'].values) / df.shape[0])
+    print(sum(l1 == df['type'].values) / df.shape[0])
+    print(sum((df['p1'].values > avg_prob) == df['type'].values) / df.shape[0])
 
     print('Logit:')
     l2 = df['p2'].values > 0.5
-    print(sum(l2 == df['label'].values) / df.shape[0])
-    print(sum((df['p2'].values > avg_prob) == df['label'].values) / df.shape[0])
+    print(sum(l2 == df['type'].values) / df.shape[0])
+    print(sum((df['p2'].values > avg_prob) == df['type'].values) / df.shape[0])
 
     print('Product:')
     l3 = df['p3'].values > 1
-    print(sum(l3 == df['label'].values) / df.shape[0])
+    print(sum(l3 == df['type'].values) / df.shape[0])
 
     print('Product inverted:')
     l4 = df['p1'].values < 0.2
-    print(sum(l4 == df['label'].values) / df.shape[0])
+    print(sum(l4 == df['type'].values) / df.shape[0])
 
     return df, avg_prob
 
 
-def make_embeddings_and_target(model, dataset):
-    train, test = load_data(dataset)
+def make_embeddings_and_target(model, dataset, train=True):
 
-    n_hate = train[train['label'] == 1].shape[0]
-    n_not_hate = train[train['label'] == 0].shape[0]
+    if train:
+        data = pd.read_csv(f'../data/datasets/{dataset}/train.csv')
+    else:
+        data = pd.read_csv(f'../data/datasets/{dataset}/test.csv')
 
-    counts, probabilities = frequencies(model, train, n_hate, n_not_hate)
+    n_hate = data[data['type'] == 1].shape[0]
+    n_not_hate = data[data['type'] == 0].shape[0]
+
+    counts, probabilities = frequencies(model, data, n_hate, n_not_hate)
 
     # comparing different options for combining word probabilities
     # df, avg_prob = find_best_combination(train, ft_en, probabilities)
@@ -192,14 +196,14 @@ def make_embeddings_and_target(model, dataset):
         X[i, :] = model.get_word_vector(word)
         y[i] = probabilities[word]
 
-    return X, y, test
+    return X, y
 
 
 def sentence_probability_log(word_probabilities, log_coef=4):
     probs_avoid_zero_division = np.array([max(1e-5, min(1 - 1e-5, p)) for p in word_probabilities])
     logit_probs = np.log(probs_avoid_zero_division / (1 - probs_avoid_zero_division)) / log_coef
     logit_probs = [min(100, max(-100, l)) for l in logit_probs]
-    prob = 1 / (1 + np.exp(-np.mean(logit_probs)))
+    prob = 1 / (1 + np.exp(-np.mean(logit_probs) * log_coef))
     return prob
 
 
@@ -259,7 +263,6 @@ def predict_new(ft_model, reg_model, sentences, lang='eng', W=None, normalize=Fa
             print('Wrong function choice for sentence probability calculation! Choose between log, mean and prod.')
             sent_prob = 0
 
-        # change into 1 and 0?
         predictions.append(sent_prob)
 
     return np.array(predictions)
@@ -267,17 +270,13 @@ def predict_new(ft_model, reg_model, sentences, lang='eng', W=None, normalize=Fa
 
 if __name__ == '__main__':
 
-    # with open('../data/hate_speech_white_supremacist_forum_dataset.json') as f:
-    #     white_supr = json.load(f)
-
-    # ft_en = fasttext.load_model('../data/fasttext_models/cc.en.300.bin')
     ft_en = fasttext.load_model('../data/fasttext_models/wiki.en.bin')
     print('Model loaded')
 
     dataset = 'toxic'
 
     # making embeddings and their target probabilities
-    X, y, test = make_embeddings_and_target(ft_en, dataset)
+    X, y = make_embeddings_and_target(ft_en, dataset)
 
     # normalize embedding vectors to length 1 (normalizing rows - axis 1)
     X_norm = (X.T/np.linalg.norm(X, axis=1)).T
@@ -299,8 +298,10 @@ if __name__ == '__main__':
 
     print('Testing')
 
-    y_test = test['label'].values
-    sentences = test['comment'].values
+    test = pd.read_csv(f'../data/datasets/{dataset}/test.csv')
+
+    y_test = test['type'].values
+    sentences = test['content'].values
 
     y_predictions = predict_new(ft_en, svm_prob_predictor, sentences, 'eng', None, True)
     # y_predictions = predict_new(ft_en, xgb_predictor, sentences, 4)
