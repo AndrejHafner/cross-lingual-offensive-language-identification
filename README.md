@@ -17,7 +17,12 @@ Datasets used, and models trained with these approaches can be downloaded from
 
 ## Instructions
 
-### Andrejevi BERTi
+### BERT-based approaches
+To train models and test them on different datasets use the `bert_offensive_language_classification.ipynb` IPython notebook located in 
+`src/multilingual_bert_classification`. Upload the notebook to Google Colab, enable GPU usage and connect the notebook to your
+Google Drive containing the required models and files, which can be downloaded from [here](https://drive.google.com/drive/u/6/folders/1v1BVPBHT_K7bnaZN3f_W-hbcXEbZdQBS).
+In the notebook, update the paths refering to datasets and models to the required path on your Google Drive folder. You can check the structure with the
+file dialog on the left.
 
 ### Vector space alignment of word embeddings and predictions based on occurrences in offensive comments
 To train monolingual methods, you should select the dataset you want to train on (possible are the names of folders in 
