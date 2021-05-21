@@ -32,15 +32,15 @@ def parse_toxic_comment_dataset(path):
     print(df_relabeled["type"].value_counts())
     return df_relabeled
 
-def balance_toxic_comment_dataset(filename):
+def balance_toxic_comment_dataset(filename, size=7500):
     df = pd.read_csv(filename)
 
     df_appropriate_idx = df[df["type"] == 0].index
-    df_appropriate_idx_sampled = np.random.choice(df_appropriate_idx, size=7500)
+    df_appropriate_idx_sampled = np.random.choice(df_appropriate_idx, size)
 
     df_selected_idx = np.hstack([np.array(df[df["type"] != 0].index), df_appropriate_idx_sampled])
     df_balanced = df.iloc[df_selected_idx, :]
-    print(df_balanced["type"].value_counts())
+    # print(df_balanced["type"].value_counts())
 
     return df_balanced
 

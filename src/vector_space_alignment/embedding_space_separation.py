@@ -10,7 +10,8 @@ from sklearn import svm
 from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
 from xgboost import XGBRegressor
 
-from src.web_scrapping.utils import remove_emojies
+from src.utils import remove_emojies
+from src.scripts.filter_toxic_comments_dataset import balance_toxic_comment_dataset
 
 
 def read_fox_comments_dataset():
@@ -40,6 +41,7 @@ def parse_gab_reddit_dataset(filename):
     df = pd.read_csv(filename, dtype=str)
 
     all_comments = []
+
     for idx, row in df.iterrows():
         try:
             comments = row["text"]
@@ -63,8 +65,14 @@ def load_data(dataset):
         data = read_fox_comments_dataset()
         data = data.rename(columns={'text': 'comment'})
 
-    elif dataset == 'gab' or 'reddit':
+    elif dataset == 'gab' or dataset == 'reddit':
         data = parse_gab_reddit_dataset(f'../data/{dataset}.csv')
+
+    elif dataset == 'toxic':
+        data = balance_toxic_comment_dataset(f'../data/train_relabeled.csv', 15000)
+        data = data.rename(columns={'content': 'comment', 'type': 'label'})
+        data = data.drop(labels='id', axis=1)
+        data['label'] = np.minimum(data['label'], 1)
     else:
         print('Unknown dataset')
         exit(-1)
@@ -81,8 +89,8 @@ def load_data(dataset):
 def frequencies(model, data, n_hate, n_nothate):
     counts = {}
     probabilities = {}
-    for sent, label in data.values:
-        words = model.get_line(sent)[0]
+    for sent, label in data[['comment', 'label']].values:
+        words = model.get_line(sent.replace("\n", ""))[0]
         for word in words:
             word = word.lower().strip(',.?!"\'-~')
             if word == "":
@@ -266,7 +274,7 @@ if __name__ == '__main__':
     ft_en = fasttext.load_model('../data/fasttext_models/wiki.en.bin')
     print('Model loaded')
 
-    dataset = 'gab'
+    dataset = 'toxic'
 
     # making embeddings and their target probabilities
     X, y, test = make_embeddings_and_target(ft_en, dataset)
@@ -274,10 +282,10 @@ if __name__ == '__main__':
     # normalize embedding vectors to length 1 (normalizing rows - axis 1)
     X_norm = (X.T/np.linalg.norm(X, axis=1)).T
 
-    svm_prob_predictor = svm.SVR(kernel='linear')
+    svm_prob_predictor = svm.SVR(kernel='rbf')
     print('Fitting SVM')
     svm_prob_predictor.fit(X_norm, y)
-    with open(f'../data/SVM_prob_predictor_gab_norm_lin.pickle', 'wb') as f:
+    with open(f'../data/SVM_prob_predictor_toxic_norm_rbf.pickle', 'wb') as f:
         pickle.dump(svm_prob_predictor, f)
 
     # with open(f'../data/SVM_prob_predictor_gab_4.pickle', 'rb') as f:
