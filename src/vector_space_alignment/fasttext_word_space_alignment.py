@@ -27,53 +27,67 @@ def make_emb_matrices(model_eng, model_slo, path_to_dictionary, emb_dim):
     return X, Y
 
 
-if __name__ == '__main__':
+def orthogonal_mapping(X, Y, normalize=False):
+    if normalize:
+        X = X / np.linalg.norm(X, axis=0)
+        Y = Y / np.linalg.norm(Y, axis=0)
 
-    # choose: (wiki should be better)
-    # pretrained = 'first'
-    pretrained = 'wiki'
-
-    if pretrained == 'wiki':
-        ft_en, ft_slo = load_models('wiki.sl.bin', 'wiki.en.bin')
-    else:
-        ft_en, ft_slo = load_models('cc.sl.300.bin', 'cc.en.300.bin')
-    dim = ft_en.get_dimension()
-
-    X, Y = make_emb_matrices(ft_en, ft_slo, '../data/words_dict/sl_en_train.txt', dim)
-
-    # normalize embeddings
-    X_norm = X / np.linalg.norm(X, axis=0)
-    Y_norm = Y / np.linalg.norm(Y, axis=0)
-
-    # linear mapping between slovene and english word space
     U, _, Vt = np.linalg.svd(Y @ X.T)
     W = U @ Vt
 
-    U, _, Vt = np.linalg.svd(Y_norm @ X_norm.T)
-    W_norm = U @ Vt
+    return W
 
-    with open(f'../data/W_{pretrained}.pickle', 'wb') as f:
-        pickle.dump(W, f)
 
+
+def test_cosine_distance(X, Y, W, W_norm):
     X_test, Y_test = make_emb_matrices(ft_en, ft_slo, '../data/words_dict/sl_en_test.txt', dim)
 
+    # normalizations
+    X_norm = X / np.linalg.norm(X, axis=0)
+    Y_norm = Y / np.linalg.norm(Y, axis=0)
     Xt_norm = X_test / np.linalg.norm(X_test, axis=0)
     Yt_norm = Y_test / np.linalg.norm(Y_test, axis=0)
 
     # calculate cosine similarity, to see if this method works and if we should normalize embeddings
     sim_not_aligned = sum(np.diag(Yt_norm.T @ Xt_norm)) / X_test.shape[1]
-    sim_aligned = sum(np.diag((Y_test / np.linalg.norm(Y_test, axis=0)).T @ (W @ X_test / np.linalg.norm(W @ X_test, axis=0)))) / X_test.shape[1]
+    sim_aligned = sum(
+        np.diag((Y_test / np.linalg.norm(Y_test, axis=0)).T @ (W @ X_test / np.linalg.norm(W @ X_test, axis=0)))) / \
+                  X_test.shape[1]
 
     sim_norm_aligned = sum(np.diag(Yt_norm.T @ (W_norm @ Xt_norm))) / X_test.shape[1]
 
     print(f'Average cosine similarity of Slovene and English embeddings before alignment: {sim_not_aligned}')
     print(f'Average cosine similarity of aligned embeddings: {sim_aligned}')
     print(f'Average cosine similarity of aligned embeddings with normalization: {sim_norm_aligned}')
-    # on train data:
-    print(f'Aligned train data: {sum(np.diag(Y_norm.T @ (W_norm @ X_norm))) / X.shape[1]}')
-    print(f'Not aligned train data: {sum(np.diag(Y_norm.T @ X_norm)) / X.shape[1]}')
+    print('On train data:')
+    print(f'Aligned train data: {sum(np.diag(Y_norm.T @ (W_norm @ X_norm))) / X_norm.shape[1]}')
+    print(f'Not aligned train data: {sum(np.diag(Y_norm.T @ X_norm)) / X_norm.shape[1]}')
+    print(f'Aligned train data not normalized: {sum(np.diag(Y_norm.T @ (W @ X_norm))) / X_norm.shape[1]}')
 
-    print(f'Aligned train data not normalized: {sum(np.diag(Y_norm.T @ (W @ X_norm))) / X.shape[1]}')
+
+if __name__ == '__main__':
+
+    write_mtcs = False
+
+    ft_en, ft_slo = load_models('wiki.sl.bin', 'wiki.en.bin')
+
+    dim = ft_en.get_dimension()
+
+    X, Y = make_emb_matrices(ft_en, ft_slo, '../data/words_dict/sl_en_train.txt', dim)
+
+    # linear mappings between slovene and english word space
+    W = orthogonal_mapping(X, Y)
+    W_norm = orthogonal_mapping(X, Y, normalize=True)
+
+    if write_mtcs:
+        with open(f'../data/W_norm.pickle', 'wb') as f:
+            pickle.dump(W_norm, f)
+
+        with open(f'../data/W_wiki.pickle', 'wb') as f:
+            pickle.dump(W, f)
+
+    test_cosine_distance(X, Y, W, W_norm)
+
 
     # WIKI
     # Average cosine similarity of Slovene and English embeddings before alignment: 0.008255468048120653

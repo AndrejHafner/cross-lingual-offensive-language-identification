@@ -72,7 +72,7 @@ def split_binary_datasets():
 
     data_toxic = balance_toxic_comment_dataset(f'../data/train_relabeled.csv', 15000)
     data_toxic = data_toxic.drop(labels='id', axis=1)
-    data_toxic['label'] = np.minimum(data_toxic['label'], 1)
+    data_toxic['type'] = np.minimum(data_toxic['type'], 1)
 
     for data, name in zip([data_fox, data_gab, data_reddit, data_toxic], ['fox', 'gab', 'reddit', 'toxic']):
         data_index = data.index.values
@@ -86,9 +86,13 @@ def split_binary_datasets():
         test.to_csv(f'../data/datasets/{name}/test.csv')
 
 
-def frequencies(model, data, n_hate, n_nothate):
+def frequencies(model, data):
     counts = {}
     probabilities = {}
+
+    n_hate = data[data['type'] == 1].shape[0]
+    n_nothate = data[data['type'] == 0].shape[0]
+
     for sent, label in data[['content', 'type']].values:
         words = model.get_line(sent.replace("\n", ""))[0]
         for word in words:
@@ -179,10 +183,7 @@ def make_embeddings_and_target(model, dataset, train=True):
     else:
         data = pd.read_csv(f'../data/datasets/{dataset}/test.csv')
 
-    n_hate = data[data['type'] == 1].shape[0]
-    n_not_hate = data[data['type'] == 0].shape[0]
-
-    counts, probabilities = frequencies(model, data, n_hate, n_not_hate)
+    counts, probabilities = frequencies(model, data)
 
     # comparing different options for combining word probabilities
     # df, avg_prob = find_best_combination(train, ft_en, probabilities)

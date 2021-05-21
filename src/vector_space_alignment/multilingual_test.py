@@ -25,12 +25,12 @@ def load_slo_data():
 def test_on_words(ft_en, ft_slo, svm_prob_predictor, print_extremes=False, normalize=False):
     """Only used to show which slovene words have high and low hate probability when we predict from their projections
     to eng space."""
-    dictionary = pd.read_csv('../data/words_dict/sl_en_test.txt', header=None, delimiter='\t').values
+    dictionary = pd.read_csv('../data/words_dict/sl_en_train.txt', header=None, delimiter='\t').values
     dim = ft_en.get_dimension()
-    X, Y = make_emb_matrices(ft_en, ft_slo, '../data/words_dict/sl_en_test.txt', dim)
-    hate = ['pizda', 'kurac', 'bedak', 'idiot', 'kreten', 'terorist', 'andrej', 'čudak', 'debil', 'sovražim', 'neumno']
-    for word in hate:
-        X = np.hstack([X, np.reshape(ft_slo.get_word_vector(word), (300, 1))])
+    X, Y = make_emb_matrices(ft_en, ft_slo, '../data/words_dict/sl_en_train.txt', dim)
+    # hate = ['pizda', 'kurac', 'bedak', 'idiot', 'kreten', 'terorist', 'andrej', 'čudak', 'debil', 'sovražim', 'neumno']
+    # for word in hate:
+    #     X = np.hstack([X, np.reshape(ft_slo.get_word_vector(word), (300, 1))])
 
     # normalize embeddings
     if normalize:
@@ -41,10 +41,11 @@ def test_on_words(ft_en, ft_slo, svm_prob_predictor, print_extremes=False, norma
             W = pickle.load(f)
 
     else:
-        with open('../data/W_norm.pickle', 'rb') as f:
+        with open('../data/W_wiki.pickle', 'rb') as f:
             W = pickle.load(f)
 
     slo_emb_to_eng = W @ X
+    # slo_emb_to_eng = X
 
     probabilities_slo = svm_prob_predictor.predict(slo_emb_to_eng.T)
     prob_eng = svm_prob_predictor.predict(Y.T)
@@ -52,10 +53,10 @@ def test_on_words(ft_en, ft_slo, svm_prob_predictor, print_extremes=False, norma
     if print_extremes:
         for i in range(probabilities_slo.shape[0]):
             if probabilities_slo[i] > 0.6 or probabilities_slo[i] < 0.3:
-                if i >= Y.shape[1]:
-                    print(f'Word {hate[i-Y.shape[1]]} has probability: {probabilities_slo[i]}.')
-                else:
-                    print(f'Word {dictionary[i, 0]} has probability: {probabilities_slo[i]}. Eng: {prob_eng[i]}')
+                # if i >= Y.shape[1]:
+                #     print(f'Word {hate[i-Y.shape[1]]} has probability: {probabilities_slo[i]}.')
+                # else:
+                print(f'Word {dictionary[i, 0]} has probability: {probabilities_slo[i]}. Eng: {prob_eng[i]}')
 
     return probabilities_slo, prob_eng
 
@@ -86,7 +87,7 @@ if __name__ == '__main__':
     with open('../data/SVM_prob_predictor_reddit.pickle', 'rb') as f:
         svm_prob_predictor = pickle.load(f)
 
-    slo_data = load_slo_data()
+    slo_data = load_slo_data()      # samo naloadat csv
     sentences = slo_data['content'].values
     true_type = slo_data['type'].values
 
