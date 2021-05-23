@@ -1,6 +1,7 @@
 import math
 import re
 import time
+from pathlib import Path
 
 import numpy as np
 import requests
@@ -72,9 +73,12 @@ def fetch_all_tweets(df, bearer_token, save_file_path):
 
 
 if __name__ == '__main__':
-    bearer_token = "AAAAAAAAAAAAAAAAAAAAAFNzPAEAAAAAwVIc4T9ctyvwd7d6Xi5m4LqcmmA%3DhxDJIBCTEeUua2Zuarpez1rknqAglQ5AbWIQultC8hEPKDlnuh"
+    bearer_token = "<ENTER_YOUR_TOKEN_HERE>"
 
     df_train = pd.read_csv("../data/slovenian-twitter-hatespeech/IMSyPP_SI_anotacije_training-clarin.csv", dtype=str)
     df_evaluation = pd.read_csv("../data/slovenian-twitter-hatespeech/IMSyPP_SI_anotacije_evaluation-clarin.csv")
 
+    Path("../data/slovenian-twitter-hatespeech/").mkdir(parents=True, exist_ok=True)
+
     fetch_all_tweets(df_evaluation, bearer_token, "../data/slovenian-twitter-hatespeech/hate_speech_data_evaluation.json")
+    fetch_all_tweets(df_train, bearer_token, "../data/slovenian-twitter-hatespeech/hate_speech_data_train.json")

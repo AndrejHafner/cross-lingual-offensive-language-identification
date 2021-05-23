@@ -46,8 +46,6 @@ if __name__ == '__main__':
             continue
         combined_filtered.append(tweet_data)
 
-    pd.DataFrame(combined_filtered).to_csv("../data/datasets/slo-twitter-test.csv",index=False, header=True)
+    pd.DataFrame(combined_filtered).to_csv("../data/slovenian-twitter-hatespeech/slo-twitter-test.csv",index=False, header=True)
 
-    # with open("../data/slovenian-twitter-hatespeech/hate_speech_slo_eval_filtered.json", "w") as f:
-    #     json.dump(combined_filtered, f, ensure_ascii=False)
 

@@ -1,12 +1,12 @@
 import json
 from multiprocessing import Pool
 
+import pandas as pd
 import six
 from google.cloud import translate_v2 as translate
 from tqdm import tqdm
 
 translate_client = translate.Client()
-
 
 def translate_text(text, source_lang="sl", target_lang="en"):
 
@@ -32,15 +32,13 @@ def save_json(filename, obj):
 if __name__ == '__main__':
 
 
-    with open("../../data/slovenian-twitter-hatespeech/hate_speech_slo_eval_filtered.json", "r") as f:
-        data = json.load(f)
+    df = pd.read_csv("../../data/slovenian-twitter-hatespeech/slo-twitter-test.csv")
+    data = df.to_dict("records")
 
     data_translated = []
 
     pool = Pool(processes=8)
     for idx, translated_comment in tqdm(enumerate(pool.imap(pool_func, data)), total=len(data)):
         data_translated.append(translated_comment)
-        if idx % 100 == 0:
-            save_json("../../data/slovenian-twitter-hatespeech/hate_speech_eval_filtered_translated.json", data_translated)
 
-    save_json("../../data/slovenian-twitter-hatespeech/hate_speech_eval_filtered_translated_final.json", data_translated)
+    pd.DataFrame(data_translated).to_csv("../../data/slovenian-twitter-hatespeech/slo-twitter-translated.csv", index=False, header=True)
