@@ -1,10 +1,6 @@
-# Offensive-language-exploratory-analysis
+# Cross-lingual offensive language classification
 
-Today automatic hate speech detection is an important problem on online platforms. There is a lot of English data to 
-train models on, but for some languages we can't afford to train expensive models to be able to detect offensive 
-language. In this work we show a couple of methods that can combine training on English data with transfer to Slovene. 
-With these models we achieve good performance on English data, but are not able to get good results on Slovene.
-
+Hateful content has become very common with the development and rapid adoption of different social platforms, hence the need for automatic detection of offensive language has grown as well. Since most of the content generated on the web is in English language, there already exist powerful systems for detection. But for languages with sparse data available, training such systems is a challenge.  Out of this came the idea of transferring the knowledge learnt on English to other languages.  In this work we show three methods for transferring the knowledge inter-language.  Models that perform well on English data show poor performance on Slovenian language, which we assume is due to the different domains of training and testing sets and to the inability of transferring the knowledge.
 ## Dependencies
 To be able to reproduce this work, you need to install dependencies available in the `requirements.txt`.
 You can create an Anaconda environment by running the following command in the root of the repository.
